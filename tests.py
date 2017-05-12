@@ -67,5 +67,10 @@ class TestVSM(unittest.TestCase):
         # NOTE: ideally, this would ensure the delay in output
         self.run_vsm('delay', input_data, expected_output, False)
 
+    def test_exclusive_conditions(self):
+        input_data = 'remote_key.command = "unlock"\nlock_state = true\nremote_key.command = "lock"'
+        expected_output = 'lock_state = False\nhorn = True\n'
+        self.run_vsm('exclusive_conditions', input_data, expected_output, False)
+
 if __name__ == '__main__':
     unittest.main()
