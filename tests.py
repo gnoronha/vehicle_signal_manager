@@ -72,5 +72,10 @@ class TestVSM(unittest.TestCase):
         expected_output = 'lock_state = False\nhorn = True\n'
         self.run_vsm('exclusive_conditions', input_data, expected_output, False)
 
+    def test_exclusive_conditions(self):
+        input_data = 'flux_capacitor.energy_generated = 1.1\nmovement.speed = 140'
+        expected_output = 'lights.external.time_travel_imminent\nlights.internal.time_travel_imminent\n'
+        self.run_vsm('exclusive_conditions', input_data, expected_output, False)
+
 if __name__ == '__main__':
     unittest.main()
