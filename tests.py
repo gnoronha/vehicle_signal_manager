@@ -7,14 +7,24 @@
 
 import os
 import unittest
+import threading
 from subprocess import Popen, PIPE
+from ipc.loader import load_plugin
 
 
 RULES_PATH = os.path.abspath(os.path.join('.', 'sample_rules'))
 
+def send(signal, value):
+    """Method overriden by the IPC plugin"""
+    pass
 
 class TestVSM(unittest.TestCase):
-    def run_vsm(self, name, input_data, expected_output, use_initial=True):
+
+    def setUp(self):
+        load_plugin('ipc.zeromq', use_receive=False)
+
+    def run_vsm(self, name, input_data, expected_output,
+                use_initial=True, use_ipc=None):
         conf = os.path.join(RULES_PATH, name + '.yaml')
         initial_state = os.path.join(RULES_PATH, name + '.initial.yaml')
 
@@ -24,32 +34,56 @@ class TestVSM(unittest.TestCase):
             cmd += ['--initial-state={}'.format(initial_state)]
 
         cmd += [conf]
+        if use_ipc:
+            cmd += [ '--ipc-module=zeromq', '--no-loop' ]
 
-        process = Popen(cmd, stdin=PIPE, stdout=PIPE)
-
-        output, _ = process.communicate(input=input_data.encode(), timeout=2)
-
-        self.assertEqual(output.decode() , expected_output)
+        with Popen(cmd, stdin=PIPE, stdout=PIPE) as proc:
+            if use_ipc:
+                t = threading.Thread(target=send, args=input_data)
+                t.daemon = True
+                t.start()
+                output = proc.stdout.readline()
+            else:
+                output, _ = proc.communicate(input=input_data.encode(), timeout=2)
+            self.assertEqual(output.decode() , expected_output)
 
     def test_simple0(self):
         input_data = 'transmission_gear = "reverse"'
         expected_output = 'car.backup = True\n'
         self.run_vsm('simple0', input_data, expected_output)
 
+    def test_simple0_ipc(self):
+        expected_output = 'car.backup = True\n'
+        self.run_vsm('simple0', ('transmission_gear', '"reverse"'),
+                     expected_output, use_ipc=True)
+
     def test_simple0_uninteresting(self):
         input_data = 'phone_call = "inactive"'
         expected_output = ''
         self.run_vsm('simple0', input_data, expected_output)
+
+    def test_simple0_uninteresting_ipc(self):
+        expected_output = ''
+        self.run_vsm('simple0', ('phone_call', '"inactive"'),
+                     expected_output, use_ipc=True)
 
     def test_simple2_initial(self):
         input_data = 'damage = true'
         expected_output = 'car.stop = True\n'
         self.run_vsm('simple2', input_data, expected_output)
 
+    def test_simple2_initial_ipc(self):
+        expected_output = 'car.stop = True\n'
+        self.run_vsm('simple2', ('damage', 'true'), expected_output, use_ipc=True)
+
     def test_simple2_initial_uninteresting(self):
         input_data = 'moving = false'
         expected_output = ''
         self.run_vsm('simple2', input_data, expected_output)
+
+    def test_simple2_initial_uninteresting_ipc(self):
+        expected_output = ''
+        self.run_vsm('simple2', ('moving', 'false'), expected_output, use_ipc=True)
 
     def test_simple2_modify_uninteresting(self):
         input_data = 'moving = true\ndamage = true'

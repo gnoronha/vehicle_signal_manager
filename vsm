@@ -15,6 +15,8 @@ import argparse
 import yaml
 import ast
 
+from ipc.loader import LoaderError
+
 LOGIC_REPLACE = {'||': 'or',
                  '&&': 'and',
                  'true': 'True',
@@ -147,9 +149,9 @@ def process(state, signal, value):
     state.got_signal(signal, value)
 
 
-def run(state):
+def receive():
     '''
-        Loop to grab logic from stdin, then spawn a threads for processing
+        Loop to grab logic from stdin
     '''
     for line in sys.stdin:
         line = line.replace(" ", "").strip('\n')
@@ -157,13 +159,25 @@ def run(state):
             # Ignore blank lines
             pass
         if line == "quit":
-            break
+            exit(0)
         elif "=" in line:
             line = line.split("=")
-            process(state, line[0], line[1])
+            return (line[0], line[1])
         else:
-            process(state, line, None)
+            return (line, None)
 
+def run(state, no_loop):
+    try:
+        while True:
+            message = receive()
+            if message == None:
+                exit(0)
+            signal, value = message
+            process(state, signal, value)
+            if no_loop:
+                break
+    except KeyboardInterrupt:
+        exit(0)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -171,7 +185,19 @@ if __name__ == "__main__":
                         help='Initial state, yaml file', required=False)
     parser.add_argument('rules', type=str,
                         help='yaml rules configuration')
+    parser.add_argument('--ipc-module', type=str, help='Load IPC module')
+    parser.add_argument('--no-loop', action='store_true', help='Run without loop')
     args = parser.parse_args()
 
+    if args.ipc_module:
+        from ipc.loader import load_plugin
+        # Load IPC plugin.
+        # This will override the receive function with the plugin version.
+        try:
+            load_plugin('ipc.{}'.format(args.ipc_module), use_send=False)
+        except LoaderError as err:
+            print(err)
+            exit(1)
+
     state = State(args.initial_state, args.rules)
-    run(state)
+    run(state, args.no_loop)
