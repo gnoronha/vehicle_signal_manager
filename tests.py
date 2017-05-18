@@ -8,12 +8,28 @@
 import os
 import unittest
 from subprocess import Popen, PIPE
+from ipc.loader import load_plugin
 
 
 RULES_PATH = os.path.abspath(os.path.join('.', 'sample_rules'))
 
+def send(signal, value):
+    "Function is overriden by plugin"
+
+def receive():
+    "Function is overriden by plugin"
+
+def format_ipc_input(data):
+    return [ tuple(elm.split(' = ')) for elm in data.split('\n') ]
+
+def format_ipc_output(data):
+    return (('', '') if data == '' else tuple(data.strip().split(' = ')))
+
 
 class TestVSM(unittest.TestCase):
+
+    ipc_module = None
+
     def run_vsm(self, name, input_data, expected_output, use_initial=True):
         conf = os.path.join(RULES_PATH, name + '.yaml')
         initial_state = os.path.join(RULES_PATH, name + '.initial.yaml')
@@ -24,12 +40,29 @@ class TestVSM(unittest.TestCase):
             cmd += ['--initial-state={}'.format(initial_state)]
 
         cmd += [conf]
+        if TestVSM.ipc_module:
+            cmd += [ '--ipc-module={}'.format(TestVSM.ipc_module) ]
 
-        process = Popen(cmd, stdin=PIPE, stdout=PIPE)
+        if TestVSM.ipc_module:
+            process = Popen(cmd)
 
-        output, _ = process.communicate(input=input_data.encode(), timeout=2)
+            for signal, value in format_ipc_input(input_data):
+                send(signal, value)
 
-        self.assertEqual(output.decode() , expected_output)
+            # Workaround for signals expecting ''
+            if expected_output == '':
+                send('quit', '')
+
+            output = receive()
+
+            process.terminate()
+
+            self.assertEqual(output, format_ipc_output(expected_output))
+        else:
+            process = Popen(cmd, stdin=PIPE, stdout=PIPE)
+            output, _ = process.communicate(input=input_data.encode(), timeout=2)
+
+            self.assertEqual(output.decode(), expected_output)
 
     def test_simple0(self):
         input_data = 'transmission_gear = "reverse"'
@@ -81,5 +114,12 @@ class TestVSM(unittest.TestCase):
         self.run_vsm('subclauses_arithmetic_booleans', input_data,
                 expected_output, False)
 
+
 if __name__ == '__main__':
-    unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestVSM)
+    unittest.TextTestRunner(verbosity=2).run(suite)
+
+    TestVSM.ipc_module = 'zeromq'
+    load_plugin('ipc.{}'.format(TestVSM.ipc_module))
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestVSM)
+    unittest.TextTestRunner(verbosity=2).run(suite)
