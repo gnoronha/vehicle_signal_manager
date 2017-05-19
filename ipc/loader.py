@@ -50,3 +50,6 @@ def load_plugin(modulename):
         caller_module.send = module.send
     else:
         raise LoaderError("error: missing 'send' method")
+
+    if _method_exists(module, 'connect'):
+        module.connect()

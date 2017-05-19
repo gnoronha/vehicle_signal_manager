@@ -8,6 +8,7 @@
 import zmq
 
 SOCKET_ADDR="tcp://127.0.0.1:9090"
+socket = None
 
 # The module public interface consists of the following functions:
 #
@@ -17,19 +18,19 @@ SOCKET_ADDR="tcp://127.0.0.1:9090"
 # receive - Function to receive signal.
 #           It returns the received message as a tuple of (ID, Value).
 
-def send(signal, value):
+def connect():
+    global socket
     context = zmq.Context()
-    socket = context.socket(zmq.REQ)
-    socket.connect(SOCKET_ADDR)
 
+    socket = context.socket(zmq.PAIR)
+    socket.bind(SOCKET_ADDR)
+
+
+def send(signal, value):
     # Send Python tuple: (Signal ID, Signal Value).
     socket.send_pyobj((signal, value))
 
 
 def receive():
-    context = zmq.Context()
-    socket = context.socket(zmq.REP)
-    socket.bind(SOCKET_ADDR)
-
     # Receive Python object: (Signal ID, Signal Value).
     return socket.recv_pyobj()

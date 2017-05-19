@@ -13,12 +13,6 @@ from ipc.loader import load_plugin
 
 RULES_PATH = os.path.abspath(os.path.join('.', 'sample_rules'))
 
-def send(signal, value):
-    "Function is overriden by plugin"
-
-def receive():
-    "Function is overriden by plugin"
-
 def format_ipc_input(data):
     return [ tuple(elm.split(' = ')) for elm in data.split('\n') ]
 
@@ -27,8 +21,32 @@ def format_ipc_output(data):
 
 
 class TestVSM(unittest.TestCase):
-
     ipc_module = None
+
+    def setUp(self):
+        if self.ipc_module == 'zeromq':
+            self._init_zeromq()
+
+    def _init_zeromq(self):
+        import zmq
+        from ipc.zeromq import SOCKET_ADDR
+        self._zmq_addr = SOCKET_ADDR
+        context = zmq.Context()
+        self._zmq_socket = context.socket(zmq.PAIR)
+        self._zmq_socket.connect(self._zmq_addr)
+
+    def _send(self, signal, value):
+        if self.ipc_module == 'zeromq':
+            self._zmq_socket.send_pyobj((signal, value))
+            return
+
+        raise NotImplemented
+
+    def _receive(self):
+        if self.ipc_module == 'zeromq':
+            return self._zmq_socket.recv_pyobj()
+
+        raise NotImplemented
 
     def run_vsm(self, name, input_data, expected_output, use_initial=True):
         conf = os.path.join(RULES_PATH, name + '.yaml')
@@ -43,17 +61,17 @@ class TestVSM(unittest.TestCase):
         if TestVSM.ipc_module:
             cmd += [ '--ipc-module={}'.format(TestVSM.ipc_module) ]
 
-        if TestVSM.ipc_module:
+        if TestVSM.ipc_module == 'zeromq':
             process = Popen(cmd)
 
             for signal, value in format_ipc_input(input_data):
-                send(signal, value)
+                self._send(signal, value)
 
             # Workaround for signals expecting ''
             if expected_output == '':
-                send('quit', '')
+                self._send('quit', '')
 
-            output = receive()
+            output = self._receive()
 
             process.terminate()
 
@@ -120,6 +138,5 @@ if __name__ == '__main__':
     unittest.TextTestRunner(verbosity=2).run(suite)
 
     TestVSM.ipc_module = 'zeromq'
-    load_plugin('ipc.{}'.format(TestVSM.ipc_module))
     suite = unittest.TestLoader().loadTestsFromTestCase(TestVSM)
     unittest.TextTestRunner(verbosity=2).run(suite)
