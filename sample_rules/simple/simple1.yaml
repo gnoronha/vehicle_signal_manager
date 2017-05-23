@@ -1,0 +1,8 @@
+# YAML
+# Goal: Bring the car to a stop when it has damage
+
+condition:
+ - state.damage == true
+
+emit:
+ signal: car.stop

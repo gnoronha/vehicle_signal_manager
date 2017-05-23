@@ -1,0 +1,11 @@
+# YAML
+# state vars, no spaces or periods
+
+- wheel_one_pressure = 33
+- wheel_two_pressure = 44
+- wheel_three_pressure = 11
+- wheel_four_pressure = 43
+- back_camera = 0
+- back_radar = 0
+- ebrake = True
+- transmission_gear = -1

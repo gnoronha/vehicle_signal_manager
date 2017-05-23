@@ -1,0 +1,8 @@
+# YAML
+# Goal: Test slightly more complex logic for testing
+
+condition:
+ - state.moving != true && state.damage == true
+
+emit:
+ signal: car.stop
